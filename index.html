@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Career Football Manager</title>
+<style>
+body{margin:0;background:#0b6b3a;font-family:Arial;}
+canvas{display:block;}
+#ui{
+position:absolute;
+top:10px;left:10px;
+color:white;
+background:rgba(0,0,0,0.4);
+padding:10px;
+}
+button{margin:3px;}
+</style>
+</head>
+
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+<h3>Kariyer Modu</h3>
+<button onclick="startMatch()">Maçı Başlat</button>
+<button onclick="openTransfer()">Transfer</button>
+<button onclick="offerPlayer()">Oyuncu Teklif Et</button>
+<div id="info"></div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+// 🧠 KULÜP
+let club = {
+name:"Senin Takımın",
+budget:500000,
+reputation:50
+};
+
+// ⚽ OYUNCULAR
+let squad = [
+{name:"Forvet",pos:"ST",skill:70,value:100000},
+{name:"Orta Saha",pos:"CM",skill:68,value:80000},
+{name:"Defans",pos:"CB",skill:72,value:90000}
+];
+
+// ⚽ MATCH STATE
+let match = {
+ball:{x:400,y:300,vx:0,vy:0},
+players:[]
+};
+
+// 🧠 MATCH ENGINE BASİT FİZİK
+function updateMatch(){
+
+let b = match.ball;
+
+b.x += b.vx;
+b.y += b.vy;
+
+b.vx *= 0.96;
+b.vy *= 0.96;
+
+// basit AI
+match.players.forEach(p=>{
+let dx = b.x - p.x;
+let dy = b.y - p.y;
+
+p.x += dx * 0.01;
+p.y += dy * 0.01;
+});
+}
+
+// ⚽ MAÇ BAŞLAT
+function startMatch(){
+
+match.players = [
+{x:200,y:200},
+{x:600,y:300}
+];
+
+document.getElementById("info").innerText =
+"Maç başladı!";
+}
+
+// 💰 TRANSFER MARKET
+function openTransfer(){
+
+let list = squad.map(p =>
+`${p.name} - ${p.value}$`
+).join("\n");
+
+alert("TRANSFER MARKET:\n" + list);
+}
+
+// 🧠 OYUNCU TEKLİF
+function offerPlayer(){
+
+let p = squad[Math.floor(Math.random()*squad.length)];
+
+if(club.budget > p.value){
+
+club.budget -= p.value;
+alert(p.name + " transfer edildi!");
+
+}else{
+alert("Yetersiz bütçe!");
+}
+
+}
+
+// 🎮 SHOOT SIMULATION
+function shoot(){
+
+match.ball.vx = 8;
+match.ball.vy = (Math.random()-0.5)*4;
+}
+
+// 🎨 DRAW
+function draw(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+// saha
+ctx.fillStyle="#0b6b3a";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+// top
+ctx.fillStyle="white";
+ctx.beginPath();
+ctx.arc(match.ball.x,match.ball.y,8,0,Math.PI*2);
+ctx.fill();
+
+}
+
+// LOOP
+function loop(){
+
+updateMatch();
+draw();
+
+requestAnimationFrame(loop);
+}
+
+loop();
