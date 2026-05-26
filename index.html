@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-<title>FIFA CAREER SIM</title>
-
+<meta charset="UTF-8">
+<title>Career Football Manager</title>
 <style>
-body{margin:0;background:#0a6b3a;font-family:Arial;}
+body{margin:0;overflow:hidden;background:#0a6b3a;font-family:Arial;}
 canvas{display:block;}
 
 #ui{
@@ -13,9 +13,22 @@ top:10px;left:10px;
 color:white;
 background:rgba(0,0,0,0.5);
 padding:10px;
+width:220px;
 }
 
-button{margin:5px;}
+button{margin-top:5px;width:100%}
+
+#transferPanel{
+position:absolute;
+right:10px;top:10px;
+width:300px;
+background:rgba(0,0,0,0.85);
+color:white;
+padding:10px;
+display:none;
+}
+table{width:100%;color:white;font-size:12px;}
+td{border-bottom:1px solid #444;padding:4px;}
 </style>
 </head>
 
@@ -24,47 +37,161 @@ button{margin:5px;}
 <canvas id="c"></canvas>
 
 <div id="ui">
-<h3>Kulüp</h3>
+<h3>KULÜP</h3>
 <div id="budget"></div>
-
-<button onclick="openTransfer()">Transfer Market</button>
+<button onclick="startMatch()">Maç Başlat</button>
+<button onclick="openTransfer()">Transfer</button>
 </div>
 
-<div id="transferPanel" style="display:none;
-position:absolute;right:10px;top:10px;
-background:#000;color:white;padding:10px;width:250px;">
-<h3>Transfer</h3>
+<div id="transferPanel">
+<h3>TRANSFER MARKET</h3>
 <table id="transferTable"></table>
-<button onclick="closeTransfer()">Close</button>
+<button onclick="closeTransfer()">Kapat</button>
 </div>
 
-<script src="game.js"></script>
+<script>
 
-</body>
-</html>let club = {
+// =======================
+// 🧠 DATA LAYER
+// =======================
+
+let club = JSON.parse(localStorage.getItem("club")) || {
 name:"My Club",
 budget:500000
 };
 
-let squad = [
-{name:"ST Player",pos:"ST",skill:70,value:100000},
-{name:"CM Player",pos:"CM",skill:68,value:80000},
-{name:"CB Player",pos:"CB",skill:72,value:90000}
-];function saveGame(){
+let squad = JSON.parse(localStorage.getItem("squad")) || [
+{name:"Striker",pos:"ST",skill:70,value:100000},
+{name:"Midfielder",pos:"CM",skill:68,value:80000},
+{name:"Defender",pos:"CB",skill:72,value:90000}
+];
+
+// auto save
+setInterval(()=>{
 localStorage.setItem("club",JSON.stringify(club));
 localStorage.setItem("squad",JSON.stringify(squad));
+},2000);
+
+// =======================
+// 🎮 ENGINE SETUP
+// =======================
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+// ball
+let ball = {x:400,y:300,vx:0,vy:0};
+
+// players
+let players = [
+{x:200,y:200,speed:4,team:"A"},
+{x:600,y:300,speed:3.5,team:"B"}
+];
+
+// match state
+let matchRunning = false;
+let score = {A:0,B:0};
+
+// =======================
+// ⚽ MATCH ENGINE
+// =======================
+
+function startMatch(){
+matchRunning = true;
+ball.x=400;ball.y=300;
+ball.vx=0;ball.vy=0;
+score={A:0,B:0};
 }
 
-function loadGame(){
-let c = localStorage.getItem("club");
-let s = localStorage.getItem("squad");
+function updateAI(){
 
-if(c) club = JSON.parse(c);
-if(s) squad = JSON.parse(s);
+if(!matchRunning) return;
+
+players.forEach(p=>{
+
+let dx = ball.x - p.x;
+let dy = ball.y - p.y;
+let dist = Math.hypot(dx,dy);
+
+if(dist < 250){
+p.x += dx * 0.01 * p.speed;
+p.y += dy * 0.01 * p.speed;
 }
 
-setInterval(saveGame,3000);
-loadGame();function openTransfer(){
+// shoot AI
+if(dist < 20 && p.team==="B"){
+ball.vx = -5;
+ball.vy = (Math.random()-0.5)*3;
+}
+
+});
+}
+
+function updateBall(){
+
+if(!matchRunning) return;
+
+ball.x += ball.vx;
+ball.y += ball.vy;
+
+ball.vx *= 0.96;
+ball.vy *= 0.96;
+
+// goal check
+if(ball.x < 0){
+score.B++;
+resetBall();
+}
+if(ball.x > canvas.width){
+score.A++;
+resetBall();
+}
+}
+
+function resetBall(){
+ball.x = canvas.width/2;
+ball.y = canvas.height/2;
+ball.vx = 0;
+ball.vy = 0;
+}
+
+// =======================
+// 🎨 DRAW
+// =======================
+
+function draw(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+// field
+ctx.fillStyle="#0a6b3a";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+// players
+ctx.fillStyle="blue";
+players.forEach(p=>{
+ctx.fillRect(p.x,p.y,30,30);
+});
+
+// ball
+ctx.fillStyle="white";
+ctx.beginPath();
+ctx.arc(ball.x,ball.y,8,0,Math.PI*2);
+ctx.fill();
+
+// score
+ctx.fillStyle="white";
+ctx.font="20px Arial";
+ctx.fillText(score.A + " - " + score.B, canvas.width/2,50);
+}
+
+// =======================
+// 💰 TRANSFER SYSTEM
+// =======================
+
+function openTransfer(){
 document.getElementById("transferPanel").style.display="block";
 renderTransfer();
 }
@@ -82,7 +209,7 @@ squad.forEach((p,i)=>{
 
 let row = document.createElement("tr");
 
-row.innerHTML=`
+row.innerHTML = `
 <td>${p.name}</td>
 <td>${p.pos}</td>
 <td>${p.skill}</td>
@@ -104,72 +231,14 @@ if(club.budget >= p.value){
 club.budget -= p.value;
 squad.splice(i,1);
 renderTransfer();
-alert("Signed: " + p.name);
 }
-}const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-
-canvas.width = innerWidth;
-canvas.height = innerHeight;
-
-let ball = {x:400,y:300,vx:0,vy:0};
-
-let players = [
-{x:200,y:200,speed:4,team:"A"},
-{x:600,y:300,speed:3.5,team:"B"}
-];
-
-// ⚽ TOP FİZİĞİ
-function updateBall(){
-ball.x += ball.vx;
-ball.y += ball.vy;
-
-ball.vx *= 0.96;
-ball.vy *= 0.96;
 }
 
-// 🤖 AI
-function updateAI(){
+// =======================
+// 🧠 LOOP
+// =======================
 
-players.forEach(p=>{
-
-let dx = ball.x - p.x;
-let dy = ball.y - p.y;
-
-let dist = Math.sqrt(dx*dx+dy*dy);
-
-if(dist < 200){
-p.x += dx * 0.01 * p.speed;
-p.y += dy * 0.01 * p.speed;
-}
-
-if(dist < 20 && p.team==="B"){
-ball.vx = -5;
-ball.vy = (Math.random()-0.5)*3;
-}
-
-});
-}function draw(){
-
-ctx.clearRect(0,0,canvas.width,canvas.height);
-
-// saha
-ctx.fillStyle="#0a6b3a";
-ctx.fillRect(0,0,canvas.width,canvas.height);
-
-// player
-ctx.fillStyle="blue";
-players.forEach(p=>{
-ctx.fillRect(p.x,p.y,30,30);
-});
-
-// ball
-ctx.fillStyle="white";
-ctx.beginPath();
-ctx.arc(ball.x,ball.y,8,0,Math.PI*2);
-ctx.fill();
-
-}function loop(){
+function loop(){
 
 updateAI();
 updateBall();
@@ -182,3 +251,8 @@ requestAnimationFrame(loop);
 }
 
 loop();
+
+</script>
+
+</body>
+</html>
