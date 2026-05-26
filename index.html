@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Career Football Manager</title>
+<title>FIFA CAREER SIM</title>
+
 <style>
-body{margin:0;background:#0b6b3a;font-family:Arial;}
+body{margin:0;background:#0a6b3a;font-family:Arial;}
 canvas{display:block;}
+
 #ui{
 position:absolute;
 top:10px;left:10px;
 color:white;
-background:rgba(0,0,0,0.4);
+background:rgba(0,0,0,0.5);
 padding:10px;
 }
-button{margin:3px;}
+
+button{margin:5px;}
 </style>
 </head>
 
@@ -21,129 +24,159 @@ button{margin:3px;}
 <canvas id="c"></canvas>
 
 <div id="ui">
-<h3>Kariyer Modu</h3>
-<button onclick="startMatch()">Maçı Başlat</button>
-<button onclick="openTransfer()">Transfer</button>
-<button onclick="offerPlayer()">Oyuncu Teklif Et</button>
-<div id="info"></div>
+<h3>Kulüp</h3>
+<div id="budget"></div>
+
+<button onclick="openTransfer()">Transfer Market</button>
+</div>
+
+<div id="transferPanel" style="display:none;
+position:absolute;right:10px;top:10px;
+background:#000;color:white;padding:10px;width:250px;">
+<h3>Transfer</h3>
+<table id="transferTable"></table>
+<button onclick="closeTransfer()">Close</button>
 </div>
 
 <script src="game.js"></script>
+
 </body>
-</html>const canvas = document.getElementById("c");
+</html>let club = {
+name:"My Club",
+budget:500000
+};
+
+let squad = [
+{name:"ST Player",pos:"ST",skill:70,value:100000},
+{name:"CM Player",pos:"CM",skill:68,value:80000},
+{name:"CB Player",pos:"CB",skill:72,value:90000}
+];function saveGame(){
+localStorage.setItem("club",JSON.stringify(club));
+localStorage.setItem("squad",JSON.stringify(squad));
+}
+
+function loadGame(){
+let c = localStorage.getItem("club");
+let s = localStorage.getItem("squad");
+
+if(c) club = JSON.parse(c);
+if(s) squad = JSON.parse(s);
+}
+
+setInterval(saveGame,3000);
+loadGame();function openTransfer(){
+document.getElementById("transferPanel").style.display="block";
+renderTransfer();
+}
+
+function closeTransfer(){
+document.getElementById("transferPanel").style.display="none";
+}
+
+function renderTransfer(){
+
+let table = document.getElementById("transferTable");
+table.innerHTML="";
+
+squad.forEach((p,i)=>{
+
+let row = document.createElement("tr");
+
+row.innerHTML=`
+<td>${p.name}</td>
+<td>${p.pos}</td>
+<td>${p.skill}</td>
+<td>${p.value}</td>
+<td><button onclick="buy(${i})">BUY</button></td>
+`;
+
+table.appendChild(row);
+
+});
+
+}
+
+function buy(i){
+
+let p = squad[i];
+
+if(club.budget >= p.value){
+club.budget -= p.value;
+squad.splice(i,1);
+renderTransfer();
+alert("Signed: " + p.name);
+}
+}const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-// 🧠 KULÜP
-let club = {
-name:"Senin Takımın",
-budget:500000,
-reputation:50
-};
+let ball = {x:400,y:300,vx:0,vy:0};
 
-// ⚽ OYUNCULAR
-let squad = [
-{name:"Forvet",pos:"ST",skill:70,value:100000},
-{name:"Orta Saha",pos:"CM",skill:68,value:80000},
-{name:"Defans",pos:"CB",skill:72,value:90000}
+let players = [
+{x:200,y:200,speed:4,team:"A"},
+{x:600,y:300,speed:3.5,team:"B"}
 ];
 
-// ⚽ MATCH STATE
-let match = {
-ball:{x:400,y:300,vx:0,vy:0},
-players:[]
-};
+// ⚽ TOP FİZİĞİ
+function updateBall(){
+ball.x += ball.vx;
+ball.y += ball.vy;
 
-// 🧠 MATCH ENGINE BASİT FİZİK
-function updateMatch(){
+ball.vx *= 0.96;
+ball.vy *= 0.96;
+}
 
-let b = match.ball;
+// 🤖 AI
+function updateAI(){
 
-b.x += b.vx;
-b.y += b.vy;
+players.forEach(p=>{
 
-b.vx *= 0.96;
-b.vy *= 0.96;
+let dx = ball.x - p.x;
+let dy = ball.y - p.y;
 
-// basit AI
-match.players.forEach(p=>{
-let dx = b.x - p.x;
-let dy = b.y - p.y;
+let dist = Math.sqrt(dx*dx+dy*dy);
 
-p.x += dx * 0.01;
-p.y += dy * 0.01;
+if(dist < 200){
+p.x += dx * 0.01 * p.speed;
+p.y += dy * 0.01 * p.speed;
+}
+
+if(dist < 20 && p.team==="B"){
+ball.vx = -5;
+ball.vy = (Math.random()-0.5)*3;
+}
+
 });
-}
-
-// ⚽ MAÇ BAŞLAT
-function startMatch(){
-
-match.players = [
-{x:200,y:200},
-{x:600,y:300}
-];
-
-document.getElementById("info").innerText =
-"Maç başladı!";
-}
-
-// 💰 TRANSFER MARKET
-function openTransfer(){
-
-let list = squad.map(p =>
-`${p.name} - ${p.value}$`
-).join("\n");
-
-alert("TRANSFER MARKET:\n" + list);
-}
-
-// 🧠 OYUNCU TEKLİF
-function offerPlayer(){
-
-let p = squad[Math.floor(Math.random()*squad.length)];
-
-if(club.budget > p.value){
-
-club.budget -= p.value;
-alert(p.name + " transfer edildi!");
-
-}else{
-alert("Yetersiz bütçe!");
-}
-
-}
-
-// 🎮 SHOOT SIMULATION
-function shoot(){
-
-match.ball.vx = 8;
-match.ball.vy = (Math.random()-0.5)*4;
-}
-
-// 🎨 DRAW
-function draw(){
+}function draw(){
 
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 // saha
-ctx.fillStyle="#0b6b3a";
+ctx.fillStyle="#0a6b3a";
 ctx.fillRect(0,0,canvas.width,canvas.height);
 
-// top
+// player
+ctx.fillStyle="blue";
+players.forEach(p=>{
+ctx.fillRect(p.x,p.y,30,30);
+});
+
+// ball
 ctx.fillStyle="white";
 ctx.beginPath();
-ctx.arc(match.ball.x,match.ball.y,8,0,Math.PI*2);
+ctx.arc(ball.x,ball.y,8,0,Math.PI*2);
 ctx.fill();
 
-}
+}function loop(){
 
-// LOOP
-function loop(){
-
-updateMatch();
+updateAI();
+updateBall();
 draw();
+
+document.getElementById("budget").innerText =
+"Budget: " + club.budget;
 
 requestAnimationFrame(loop);
 }
