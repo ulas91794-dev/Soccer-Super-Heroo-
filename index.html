@@ -1,258 +1,304 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="UTF-8">
-<title>Career Football Manager</title>
-<style>
-body{margin:0;overflow:hidden;background:#0a6b3a;font-family:Arial;}
-canvas{display:block;}
+/**
+ * CAREER.JS - VERİ VE KAYIT YÖNETİMİ
+ * Oyunun tüm state'ini ve kariyer verilerini tutar.
+ */
+const CareerManager = {
+    data: {
+        club: { name: "Global FC", budget: 1500000, reputation: 10, leaguePoints: 0 },
+        squad: [
+            { id: 1, name: "Striker A", pos: "ST", skill: 85, value: 500000 },
+            { id: 2, name: "Midfield B", pos: "CM", skill: 80, value: 400000 },
+            { id: 3, name: "Defender C", pos: "CB", skill: 78, value: 350000 },
+            { id: 4, name: "Goalkeeper D", pos: "GK", skill: 82, value: 450000 }
+        ],
+        market: [
+            { id: 10, name: "Wonderkid X", pos: "ST", skill: 70, value: 200000 },
+            { id: 11, name: "Veteran Y", pos: "CB", skill: 75, value: 150000 }
+        ],
+        history: []
+    },
 
-#ui{
-position:absolute;
-top:10px;left:10px;
-color:white;
-background:rgba(0,0,0,0.5);
-padding:10px;
-width:220px;
-}
+    init() {
+        const saved = localStorage.getItem("football_career");
+        if (saved) this.data = JSON.parse(saved);
+        console.log("Kariyer verileri yüklendi.");
+    },
 
-button{margin-top:5px;width:100%}
+    save() {
+        localStorage.setItem("football_career", JSON.stringify(this.data));
+    },
 
-#transferPanel{
-position:absolute;
-right:10px;top:10px;
-width:300px;
-background:rgba(0,0,0,0.85);
-color:white;
-padding:10px;
-display:none;
-}
-table{width:100%;color:white;font-size:12px;}
-td{border-bottom:1px solid #444;padding:4px;}
-</style>
-</head>
+    transferPlayer(playerId) {
+        const player = this.data.market.find(p => p.id === playerId);
+        if (player && this.data.club.budget >= player.value) {
+            this.data.club.budget -= player.value;
+            this.data.squad.push(player);
+            this.data.market = this.data.market.filter(p => p.id !== playerId);
+            this.save();
+            return true;
+        }
+        return false;
+    },
 
-<body>
-
-<canvas id="c"></canvas>
-
-<div id="ui">
-<h3>KULÜP</h3>
-<div id="budget"></div>
-<button onclick="startMatch()">Maç Başlat</button>
-<button onclick="openTransfer()">Transfer</button>
-</div>
-
-<div id="transferPanel">
-<h3>TRANSFER MARKET</h3>
-<table id="transferTable"></table>
-<button onclick="closeTransfer()">Kapat</button>
-</div>
-
-<script>
-
-// =======================
-// 🧠 DATA LAYER
-// =======================
-
-let club = JSON.parse(localStorage.getItem("club")) || {
-name:"My Club",
-budget:500000
+    updatePlayerSkill() {
+        this.data.squad.forEach(p => {
+            if (Math.random() > 0.7) p.skill += 1;
+        });
+        this.save();
+    }
 };
 
-let squad = JSON.parse(localStorage.getItem("squad")) || [
-{name:"Striker",pos:"ST",skill:70,value:100000},
-{name:"Midfielder",pos:"CM",skill:68,value:80000},
-{name:"Defender",pos:"CB",skill:72,value:90000}
-];
+CareerManager.init();
+/**
+ * ASSETS.JS - 3D OBJELER VE SAHNE KURULUMU
+ * Three.js geometrilerini ve materyallerini içeren merkez kütüphane.
+ */
+const AssetLibrary = {
+    // Saha Zemini
+    createField: function() {
+        const geo = new THREE.PlaneGeometry(60, 100);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x2d8a3e, side: THREE.DoubleSide });
+        const field = new THREE.Mesh(geo, mat);
+        field.rotation.x = -Math.PI / 2;
+        field.receiveShadow = true;
+        return field;
+    },
 
-// auto save
-setInterval(()=>{
-localStorage.setItem("club",JSON.stringify(club));
-localStorage.setItem("squad",JSON.stringify(squad));
-},2000);
+    // 3D Top
+    createBall: function() {
+        const geo = new THREE.SphereGeometry(0.5, 32, 32);
+        const mat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        const ball = new THREE.Mesh(geo, mat);
+        ball.castShadow = true;
+        ball.position.y = 0.5;
+        return ball;
+    },
 
-// =======================
-// 🎮 ENGINE SETUP
-// =======================
+    // Oyuncu Modeli (Capsule - Daha doğal görünür)
+    createPlayer: function(color) {
+        const group = new THREE.Group();
+        // Vücut
+        const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.8, 16);
+        const bodyMat = new THREE.MeshPhongMaterial({ color: color });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.9;
+        
+        // Kafa
+        const headGeo = new THREE.SphereGeometry(0.3, 16, 16);
+        const head = new THREE.Mesh(headGeo, bodyMat);
+        head.position.y = 2.0;
+        
+        group.add(body);
+        group.add(head);
+        return group;
+    },
 
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+    // Stadyum Sınırları ve Çizgiler
+    createStadiumBorder: function() {
+        const borderGeo = new THREE.BoxGeometry(62, 2, 102);
+        const borderMat = new THREE.MeshBasicMaterial({ color: 0x1a4a2a, transparent: true, opacity: 0.3 });
+        const border = new THREE.Mesh(borderGeo, borderMat);
+        border.position.y = -0.5;
+        return border;
+    }
+};
 
-// ball
-let ball = {x:400,y:300,vx:0,vy:0};
+console.log("3D Asset Kütüphanesi Yüklendi.");
+/**
+ * PHYSICS.JS - OYUNUN FİZİK MOTORU VE YAPAY ZEKA
+ * Topun fiziği ve oyuncuların topa yönelimi burada yönetilir.
+ */
+const PhysicsEngine = {
+    ballVelocity: { x: 0, z: 0 },
+    friction: 0.98, // Sürtünme katsayısı
 
-// players
-let players = [
-{x:200,y:200,speed:4,team:"A"},
-{x:600,y:300,speed:3.5,team:"B"}
-];
+    updateBall: function(ball) {
+        ball.position.x += this.ballVelocity.x;
+        ball.position.z += this.ballVelocity.z;
+        
+        // Sürtünme (Top yavaşlar)
+        this.ballVelocity.x *= this.friction;
+        this.ballVelocity.z *= this.friction;
 
-// match state
-let matchRunning = false;
-let score = {A:0,B:0};
+        // Saha sınırları kontrolü
+        if (Math.abs(ball.position.x) > 30) this.ballVelocity.x *= -1;
+        if (Math.abs(ball.position.z) > 50) this.ballVelocity.z *= -1;
+    },
 
-// =======================
-// ⚽ MATCH ENGINE
-// =======================
+    // Yapay Zeka: Oyuncuyu topa doğru sürer
+    updateAI: function(player, ball, speed) {
+        const dx = ball.position.x - player.position.x;
+        const dz = ball.position.z - player.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
 
-function startMatch(){
-matchRunning = true;
-ball.x=400;ball.y=300;
-ball.vx=0;ball.vy=0;
-score={A:0,B:0};
-}
+        if (dist > 1) { // Topa çok yakın değilse hareket et
+            player.position.x += (dx / dist) * speed;
+            player.position.z += (dz / dist) * speed;
+            
+            // Oyuncuyu topa döndür
+            player.lookAt(ball.position.x, player.position.y, ball.position.z);
+        }
+    },
 
-function updateAI(){
+    // Çarpışma: Oyuncu topa vurursa
+    checkCollision: function(player, ball) {
+        const dx = player.position.x - ball.position.x;
+        const dz = player.position.z - ball.position.z;
+        if (Math.sqrt(dx * dx + dz * dz) < 1.5) {
+            this.ballVelocity.x = -dx * 0.5;
+            this.ballVelocity.z = -dz * 0.5;
+        }
+    }
+};
 
-if(!matchRunning) return;
+console.log("Fizik motoru ve AI modülleri hazır.");
+          /**
+ * UI.JS - MOBİL JOYSTICK VE ARAYÜZ
+ * Ekrandaki dokunmatik kontrolleri ve butonları yönetir.
+ */
+const UIManager = {
+    joystickData: { x: 0, z: 0 },
 
-players.forEach(p=>{
+    initControls: function() {
+        const joystickArea = document.createElement("div");
+        joystickArea.id = "joystick";
+        Object.assign(joystickArea.style, {
+            position: "absolute", bottom: "50px", left: "50px",
+            width: "100px", height: "100px", borderRadius: "50%",
+            background: "rgba(255,255,255,0.2)", border: "2px solid white"
+        });
+        document.body.appendChild(joystickArea);
 
-let dx = ball.x - p.x;
-let dy = ball.y - p.y;
-let dist = Math.hypot(dx,dy);
+        // Dokunmatik olaylar
+        joystickArea.addEventListener("touchmove", (e) => {
+            const t = e.touches[0];
+            const rect = joystickArea.getBoundingClientRect();
+            // Joystick merkezine göre -1 ile 1 arası değer üret
+            this.joystickData.x = ((t.clientX - rect.left) / 100 - 0.5) * 2;
+            this.joystickData.z = ((t.clientY - rect.top) / 100 - 0.5) * 2;
+        });
 
-if(dist < 250){
-p.x += dx * 0.01 * p.speed;
-p.y += dy * 0.01 * p.speed;
-}
+        joystickArea.addEventListener("touchend", () => {
+            this.joystickData.x = 0;
+            this.joystickData.z = 0;
+        });
+    },
 
-// shoot AI
-if(dist < 20 && p.team==="B"){
-ball.vx = -5;
-ball.vy = (Math.random()-0.5)*3;
-}
+    updateScoreboard: function(scoreA, scoreB) {
+        let el = document.getElementById("score");
+        if (!el) {
+            el = document.createElement("div");
+            el.id = "score";
+            Object.assign(el.style, { position: "absolute", top: "20px", left: "50%", color: "white", fontSize: "24px" });
+            document.body.appendChild(el);
+        }
+        el.innerText = `${scoreA} - ${scoreB}`;
+    }
+};
 
-});
-}
+UIManager.initControls();
+console.log("Mobil kontroller ve UI hazır.");
+          /**
+ * EVENTS.JS - OLAY YÖNETİCİSİ
+ * Kullanıcı aksiyonları ile oyun mantığı arasındaki köprü.
+ */
+const EventManager = {
+    isMatchActive: false,
 
-function updateBall(){
+    setupGlobalEvents: function() {
+        // Maç Başlat Butonu
+        document.addEventListener("click", (e) => {
+            if (e.target.id === "startMatchBtn") {
+                this.startMatch();
+            }
+        });
 
-if(!matchRunning) return;
+        // Oyuncu Transfer Etme Olayı
+        document.addEventListener("transferRequest", (e) => {
+            const success = CareerManager.transferPlayer(e.detail.id);
+            if (success) {
+                alert("Transfer Başarılı!");
+            } else {
+                alert("Bütçe yetersiz veya oyuncu alınmış!");
+            }
+        });
+    },
 
-ball.x += ball.vx;
-ball.y += ball.vy;
+    startMatch: function() {
+        console.log("Maç başlatılıyor...");
+        this.isMatchActive = true;
+        // Kamera sistemini aktif et veya arayüzü güncelle
+        UIManager.updateScoreboard(0, 0);
+    },
 
-ball.vx *= 0.96;
-ball.vy *= 0.96;
+    onGoalScored: function(team) {
+        console.log(team + " gol attı!");
+        // Skoru güncelle ve kısa bir duraklatma yap
+        this.isMatchActive = false;
+        setTimeout(() => { this.isMatchActive = true; }, 2000);
+    }
+};
 
-// goal check
-if(ball.x < 0){
-score.B++;
-resetBall();
-}
-if(ball.x > canvas.width){
-score.A++;
-resetBall();
-}
-}
+// Global event dinleyicilerini başlat
+EventManager.setupGlobalEvents();
+console.log("Event Manager aktif.");
+          /**
+ * ENGINE.JS - MASTER CONTROLLER
+ * Tüm sistemin birleştiği yer. Oyun buradan başlar.
+ */
 
-function resetBall(){
-ball.x = canvas.width/2;
-ball.y = canvas.height/2;
-ball.vx = 0;
-ball.vy = 0;
-}
+const GameEngine = {
+    scene: null,
+    camera: null,
+    renderer: null,
+    clock: new THREE.Clock(),
 
-// =======================
-// 🎨 DRAW
-// =======================
+    init: function() {
+        // 1. Sahne kurulumu
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(innerWidth, innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        document.body.appendChild(this.renderer.domElement);
 
-function draw(){
+        // 2. Varlıkların sahneye eklenmesi
+        const field = AssetLibrary.createField();
+        this.scene.add(field);
 
-ctx.clearRect(0,0,canvas.width,canvas.height);
+        const ball = AssetLibrary.createBall();
+        this.scene.add(ball);
 
-// field
-ctx.fillStyle="#0a6b3a";
-ctx.fillRect(0,0,canvas.width,canvas.height);
+        const player = AssetLibrary.createPlayer(0x0000ff);
+        this.scene.add(player);
 
-// players
-ctx.fillStyle="blue";
-players.forEach(p=>{
-ctx.fillRect(p.x,p.y,30,30);
-});
+        this.camera.position.set(0, 20, 30);
+        this.camera.lookAt(0, 0, 0);
 
-// ball
-ctx.fillStyle="white";
-ctx.beginPath();
-ctx.arc(ball.x,ball.y,8,0,Math.PI*2);
-ctx.fill();
+        // 3. Döngüyü başlat
+        this.animate(ball, player);
+    },
 
-// score
-ctx.fillStyle="white";
-ctx.font="20px Arial";
-ctx.fillText(score.A + " - " + score.B, canvas.width/2,50);
-}
+    animate: function(ball, player) {
+        requestAnimationFrame(() => this.animate(ball, player));
 
-// =======================
-// 💰 TRANSFER SYSTEM
-// =======================
+        if (EventManager.isMatchActive) {
+            // Fizik güncellemeleri
+            PhysicsEngine.updateBall(ball);
+            PhysicsEngine.updateAI(player, ball, 0.1);
+            PhysicsEngine.checkCollision(player, ball);
+            
+            // Kamera takibi (Broadcast feel)
+            this.camera.position.x += (player.position.x - this.camera.position.x) * 0.05;
+        }
 
-function openTransfer(){
-document.getElementById("transferPanel").style.display="block";
-renderTransfer();
-}
+        this.renderer.render(this.scene, this.camera);
+    }
+};
 
-function closeTransfer(){
-document.getElementById("transferPanel").style.display="none";
-}
-
-function renderTransfer(){
-
-let table = document.getElementById("transferTable");
-table.innerHTML="";
-
-squad.forEach((p,i)=>{
-
-let row = document.createElement("tr");
-
-row.innerHTML = `
-<td>${p.name}</td>
-<td>${p.pos}</td>
-<td>${p.skill}</td>
-<td>${p.value}</td>
-<td><button onclick="buy(${i})">BUY</button></td>
-`;
-
-table.appendChild(row);
-
-});
-
-}
-
-function buy(i){
-
-let p = squad[i];
-
-if(club.budget >= p.value){
-club.budget -= p.value;
-squad.splice(i,1);
-renderTransfer();
-}
-}
-
-// =======================
-// 🧠 LOOP
-// =======================
-
-function loop(){
-
-updateAI();
-updateBall();
-draw();
-
-document.getElementById("budget").innerText =
-"Budget: " + club.budget;
-
-requestAnimationFrame(loop);
-}
-
-loop();
-
-</script>
-
-</body>
-</html>
+// Başlat!
+window.onload = () => {
+    GameEngine.init();
+    console.log("Soccer Super Hero: Engine Started.");
+};
+          
